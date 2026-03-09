@@ -1,87 +1,72 @@
-# Welcome to React Router!
+# Neon Stack Tetris
 
-A modern, production-ready template for building full-stack React applications using React Router.
+Responsive Tetris built with React Router in SPA mode. The app keeps the game rules in a pure domain engine, pushes keyboard and timer orchestration into a client usecase Hook, and keeps the UI layer presentational.
 
-[![Open in StackBlitz](https://developer.stackblitz.com/img/open_in_stackblitz.svg)](https://stackblitz.com/github/remix-run/react-router-templates/tree/main/default)
+![Neon Stack Tetris screenshot](./docs/tetris-screenshot.png)
 
 ## Features
 
-- 🚀 Server-side rendering
-- ⚡️ Hot Module Replacement (HMR)
-- 📦 Asset bundling and optimization
-- 🔄 Data loading and mutations
-- 🔒 TypeScript by default
-- 🎉 TailwindCSS for styling
-- 📖 [React Router docs](https://reactrouter.com/)
+- 7-bag randomizer with hold, ghost piece, soft drop, and hard drop
+- score, lines, level, and gravity ramp
+- local high score persistence with `localStorage`
+- keyboard and touch controls for desktop and mobile
+- React Router SPA structure with FlatRoutes
+- Vitest coverage for core game engine behavior
 
-## Getting Started
+## Stack
 
-### Installation
+- React 19
+- React Router 7
+- TypeScript
+- Vite
+- TailwindCSS v4
+- Vitest
 
-Install the dependencies:
+## Development
+
+Install dependencies and start the app:
 
 ```bash
 npm install
-```
-
-### Development
-
-Start the development server with HMR:
-
-```bash
 npm run dev
 ```
 
-Your application will be available at `http://localhost:5173`.
+Default local URL:
 
-## Building for Production
+```text
+http://localhost:5173
+```
 
-Create a production build:
+## Quality Gates
 
 ```bash
+npm test
+npm run typecheck
 npm run build
 ```
 
-## Deployment
+## Controls
 
-### Docker Deployment
+| Action | Keys |
+| --- | --- |
+| Move left / right | `ArrowLeft` / `ArrowRight`, `A` / `D` |
+| Soft drop | `ArrowDown`, `S` |
+| Hard drop | `Space` |
+| Rotate clockwise | `ArrowUp`, `X` |
+| Rotate counter clockwise | `Z` |
+| Hold piece | `C`, `Shift` |
+| Pause | `P`, `Escape` |
+| Restart | `R` |
 
-To build and run using Docker:
+## Architecture
 
-```bash
-docker build -t my-app .
-
-# Run the container
-docker run -p 3000:3000 my-app
+```text
+app/
+  routes/                     Route composition only
+  components/tetris/         Presentational UI
+  lib/client/usecase/tetris/ Client interaction flow
+  lib/client/infrastructure/ Browser adapters
+  lib/domain/                Pure game rules and value objects
 ```
 
-The containerized application can be deployed to any platform that supports Docker, including:
-
-- AWS ECS
-- Google Cloud Run
-- Azure Container Apps
-- Digital Ocean App Platform
-- Fly.io
-- Railway
-
-### DIY Deployment
-
-If you're familiar with deploying Node applications, the built-in app server is production-ready.
-
-Make sure to deploy the output of `npm run build`
-
-```
-├── package.json
-├── package-lock.json (or pnpm-lock.yaml, or bun.lockb)
-├── build/
-│   ├── client/    # Static assets
-│   └── server/    # Server-side code
-```
-
-## Styling
-
-This template comes with [Tailwind CSS](https://tailwindcss.com/) already configured for a simple default starting experience. You can use whatever CSS framework you prefer.
-
----
-
-Built with ❤️ using React Router.
+The domain engine lives in [app/lib/domain/services/tetris-engine.ts](./app/lib/domain/services/tetris-engine.ts), and the main screen orchestration lives in [app/lib/client/usecase/tetris/use-tetris.ts](./app/lib/client/usecase/tetris/use-tetris.ts).
