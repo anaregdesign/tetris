@@ -211,7 +211,7 @@ export function TetrisView({
             <div className="panel-header">
               <p className="panel-title">Pilot</p>
               <p className="assist-copy">
-                Social login は GitHub OAuth 前提です。signed-in player は run が SQLite に保存され、履歴と leaderboard が更新されます。
+                Social login は GitHub OAuth 前提です。signed-in player は run が SQL Server に保存され、履歴と leaderboard が更新されます。
               </p>
             </div>
 

@@ -1,13 +1,123 @@
 import "dotenv/config";
 
-export function getDatabaseUrl(): string {
-  const databaseUrl = process.env["DATABASE_URL"];
+type SqlServerAuthMode = "default-azure-credential" | "sql-password";
 
-  if (!databaseUrl) {
-    throw new Error("DATABASE_URL is not configured.");
+type SqlServerRuntimeConfig =
+  | {
+      server: string;
+      port: number;
+      database: string;
+      authentication: {
+        type: "azure-active-directory-default";
+      };
+      options: {
+        encrypt: boolean;
+        trustServerCertificate: boolean;
+      };
+    }
+  | {
+      server: string;
+      port: number;
+      database: string;
+      user: string;
+      password: string;
+      options: {
+        encrypt: boolean;
+        trustServerCertificate: boolean;
+      };
+    };
+
+function requireEnv(name: string): string {
+  const value = process.env[name]?.trim();
+
+  if (!value) {
+    throw new Error(`${name} is not configured.`);
   }
 
-  return databaseUrl;
+  return value;
+}
+
+function parseIntegerEnv(name: string, fallback: number): number {
+  const raw = process.env[name];
+
+  if (!raw) {
+    return fallback;
+  }
+
+  const parsed = Number.parseInt(raw, 10);
+
+  if (Number.isNaN(parsed)) {
+    throw new Error(`${name} must be an integer.`);
+  }
+
+  return parsed;
+}
+
+function parseBooleanEnv(name: string, fallback: boolean): boolean {
+  const raw = process.env[name]?.trim().toLowerCase();
+
+  if (!raw) {
+    return fallback;
+  }
+
+  if (raw === "true") {
+    return true;
+  }
+
+  if (raw === "false") {
+    return false;
+  }
+
+  throw new Error(`${name} must be either "true" or "false".`);
+}
+
+function getSqlServerAuthMode(): SqlServerAuthMode {
+  const configuredMode = process.env["SQLSERVER_AUTH_MODE"]?.trim();
+
+  if (!configuredMode) {
+    return "default-azure-credential";
+  }
+
+  if (
+    configuredMode === "default-azure-credential" ||
+    configuredMode === "sql-password"
+  ) {
+    return configuredMode;
+  }
+
+  throw new Error(
+    'SQLSERVER_AUTH_MODE must be "default-azure-credential" or "sql-password".',
+  );
+}
+
+export function getSqlServerRuntimeConfig(): SqlServerRuntimeConfig {
+  const baseConfig = {
+    server: requireEnv("SQLSERVER_HOST"),
+    port: parseIntegerEnv("SQLSERVER_PORT", 1433),
+    database: requireEnv("SQLSERVER_DATABASE"),
+    options: {
+      encrypt: parseBooleanEnv("SQLSERVER_ENCRYPT", true),
+      trustServerCertificate: parseBooleanEnv(
+        "SQLSERVER_TRUST_SERVER_CERTIFICATE",
+        false,
+      ),
+    },
+  };
+
+  if (getSqlServerAuthMode() === "default-azure-credential") {
+    return {
+      ...baseConfig,
+      authentication: {
+        type: "azure-active-directory-default",
+      },
+    };
+  }
+
+  return {
+    ...baseConfig,
+    user: requireEnv("SQLSERVER_USER"),
+    password: requireEnv("SQLSERVER_PASSWORD"),
+  };
 }
 
 export function getSessionSecrets(): string[] {

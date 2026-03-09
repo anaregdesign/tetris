@@ -1,16 +1,14 @@
-import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
+import { PrismaMssql } from "@prisma/adapter-mssql";
 
 import { PrismaClient } from "./generated/prisma/client";
-import { getDatabaseUrl } from "./env.server";
+import { getSqlServerRuntimeConfig } from "./env.server";
 
 const globalForPrisma = globalThis as {
   prisma?: PrismaClient;
 };
 
 function createPrismaClient() {
-  const adapter = new PrismaBetterSqlite3({
-    url: getDatabaseUrl(),
-  });
+  const adapter = new PrismaMssql(getSqlServerRuntimeConfig());
 
   return new PrismaClient({
     adapter,

@@ -231,14 +231,14 @@ function createSaveStatus(
       return {
         saveStatusLabel: "Guest Run",
         saveStatusCopy:
-          "GitHub でログインすると run が SQLite に保存され、履歴と leaderboard に反映されます。",
+          "GitHub でログインすると run が SQL Server に保存され、履歴と leaderboard に反映されます。",
         saveStatusTone: "neutral",
         canRetrySave: false,
       };
     case "saving":
       return {
         saveStatusLabel: "Saving Run",
-        saveStatusCopy: "最後の run を SQLite に保存して leaderboard を更新しています。",
+        saveStatusCopy: "最後の run を SQL Server に保存して leaderboard を更新しています。",
         saveStatusTone: "progress",
         canRetrySave: false,
       };
@@ -257,7 +257,7 @@ function createSaveStatus(
         saveStatusLabel: "Save Failed",
         saveStatusCopy:
           saveFeedback.message ??
-          "SQLite への保存に失敗しました。Retry で再送できます。",
+          "SQL Server への保存に失敗しました。Retry で再送できます。",
         saveStatusTone: "error",
         canRetrySave: saveFeedback.canRetry,
       };
@@ -290,7 +290,7 @@ export function selectTetrisScreenViewModel(
       eyebrow: "Arcade SPA",
       title: "Neon Stack Tetris",
       lead:
-        "A clean-architecture React Router app with a pure game engine, GitHub social login, SQLite score history, and a live leaderboard.",
+        "A clean-architecture React Router app with a pure game engine, GitHub social login, SQL Server score history, and a live leaderboard.",
       statusLabel: "Standby",
       statusCopy: "The board is primed. Start the run, then rotate aggressively before the skyline gets tight.",
     },
@@ -369,7 +369,7 @@ export function selectTetrisScreenViewModel(
       : "ログインすると履歴がここに出ます",
     recentRunsEmptyCopy: dashboard.auth.viewer
       ? "1 回でも game over まで遊べば、自動で score history が積み上がります。"
-      : "GitHub で sign in すると、SQLite に保存された自分の過去 run を時系列で見られます。",
+      : "GitHub で sign in すると、SQL Server に保存された自分の過去 run を時系列で見られます。",
     leaderboard: dashboard.leaderboard.map((entry) => ({
       id: `${entry.player.id}-${entry.rank}`,
       rankLabel: `#${entry.rank}`,

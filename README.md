@@ -1,6 +1,6 @@
 # Neon Stack Tetris
 
-Responsive Tetris built with React Router. The app keeps the game rules in a pure domain engine, pushes keyboard and timer orchestration into a client usecase Hook, and uses GitHub social login plus SQLite persistence for score history and competition.
+Responsive Tetris built with React Router. The app keeps the game rules in a pure domain engine, pushes keyboard and timer orchestration into a client usecase Hook, and uses GitHub social login plus SQL Server persistence for score history and competition.
 
 ![Neon Stack Tetris screenshot](./docs/tetris-screenshot.png)
 
@@ -9,7 +9,7 @@ Responsive Tetris built with React Router. The app keeps the game rules in a pur
 - 7-bag randomizer with hold, ghost piece, soft drop, and hard drop
 - score, lines, level, and gravity ramp
 - GitHub social login
-- SQLite-backed run history and global leaderboard
+- SQL Server-backed run history and global leaderboard
 - guest play with local fallback high score
 - keyboard and touch controls for desktop and mobile
 - React Router file routes with server loaders/actions
@@ -20,7 +20,7 @@ Responsive Tetris built with React Router. The app keeps the game rules in a pur
 - React 19
 - React Router 7
 - Prisma ORM v7
-- SQLite
+- SQL Server / Azure SQL
 - TypeScript
 - Vite
 - TailwindCSS v4
@@ -36,10 +36,22 @@ cp .env.example .env
 
 Required variables:
 
-- `DATABASE_URL`
+- `PRISMA_DATABASE_URL`
+- `SQLSERVER_HOST`
+- `SQLSERVER_DATABASE`
+- `SQLSERVER_AUTH_MODE`
 - `SESSION_SECRET`
 - `GITHUB_CLIENT_ID`
 - `GITHUB_CLIENT_SECRET`
+
+Runtime uses the `mssql` / Tedious driver through Prisma's `@prisma/adapter-mssql`.
+
+- In Azure, set `SQLSERVER_AUTH_MODE=default-azure-credential` and do not ship `SQLSERVER_USER` / `SQLSERVER_PASSWORD` with the app.
+- For local development, `SQLSERVER_AUTH_MODE=sql-password` is supported.
+- `PRISMA_DATABASE_URL` is reserved for Prisma CLI operations such as `prisma generate` and `prisma migrate deploy`. Keep it separate from the runtime credential path.
+- For a user-assigned managed identity, set `AZURE_CLIENT_ID`. `DefaultAzureCredential` will pick it up automatically.
+
+DefaultAzureCredential only gets an access token. Azure SQL authorization still requires an Entra user mapped in the database, for example via `CREATE USER FROM EXTERNAL PROVIDER`, plus the appropriate roles.
 
 For the GitHub OAuth app, use this callback URL in local development:
 
@@ -53,6 +65,7 @@ Install dependencies and start the app:
 
 ```bash
 npm install
+npm run db:generate
 npm run db:migrate
 npm run dev
 ```
@@ -99,3 +112,9 @@ app/
 ```
 
 The domain engine lives in [app/lib/domain/services/tetris-engine.ts](./app/lib/domain/services/tetris-engine.ts), the main screen orchestration lives in [app/lib/client/usecase/tetris/use-tetris.ts](./app/lib/client/usecase/tetris/use-tetris.ts), and score persistence flows through [app/lib/server/usecase/tetris/record-score-run.server.ts](./app/lib/server/usecase/tetris/record-score-run.server.ts).
+
+## Azure Deployment Notes
+
+- Runtime authentication is designed for `DefaultAzureCredential`, which means Managed Identity on Azure is the recommended production path.
+- Prisma migrations should run with a separate deployment credential through `PRISMA_DATABASE_URL`; do not grant schema-change privileges to the runtime identity.
+- The runtime identity only needs data access on the target tables after migrations have finished.

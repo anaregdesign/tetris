@@ -4,30 +4,30 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "sqlserver"
 }
 
 model User {
-  id          String     @id @default(cuid())
-  githubId    String     @unique
-  handle      String
-  displayName String
-  avatarUrl   String?
-  profileUrl  String?
-  email       String?
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
+  id          String     @id @default(cuid()) @db.VarChar(30)
+  githubId    String     @unique @db.VarChar(64)
+  handle      String     @db.VarChar(39)
+  displayName String     @db.NVarChar(255)
+  avatarUrl   String?    @db.VarChar(2048)
+  profileUrl  String?    @db.VarChar(2048)
+  email       String?    @db.VarChar(320)
+  createdAt   DateTime   @default(now()) @db.DateTime2
+  updatedAt   DateTime   @updatedAt @db.DateTime2
   scoreRuns   ScoreRun[]
 }
 
 model ScoreRun {
-  id         String   @id @default(cuid())
-  userId     String
+  id         String   @id @default(cuid()) @db.VarChar(30)
+  userId     String   @db.VarChar(30)
   score      Int
   lines      Int
   level      Int
   durationMs Int
-  recordedAt DateTime @default(now())
+  recordedAt DateTime @default(now()) @db.DateTime2
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, recordedAt])

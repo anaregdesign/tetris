@@ -13,7 +13,7 @@ export function meta(_: Route.MetaArgs) {
     {
       name: "description",
       content:
-        "Responsive Tetris with GitHub social login, SQLite score history, and a global leaderboard.",
+        "Responsive Tetris with GitHub social login, SQL Server score history, and a global leaderboard.",
     },
   ];
 }
