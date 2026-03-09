@@ -4,6 +4,10 @@ on:
   release:
     types: [published]
 
+concurrency:
+  group: release-${{ github.event.release.tag_name }}
+  cancel-in-progress: false
+
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
@@ -61,3 +65,70 @@ jobs:
           subject-name: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           subject-digest: ${{ steps.push.outputs.digest }}
           push-to-registry: true
+
+  deploy:
+    name: Deploy Release To Azure Container Apps
+    runs-on: ubuntu-latest
+    needs: publish
+    if: ${{ !github.event.release.prerelease }}
+    environment: production
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+      AZURE_CONTAINER_APP_NAME: ${{ vars.AZURE_CONTAINER_APP_NAME || 'ca-tetris-jp-njnbgy' }}
+      AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP || 'rg-tetris-jp' }}
+      AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+      GHCR_PULL_TOKEN: ${{ secrets.GHCR_PULL_TOKEN }}
+      GHCR_PULL_USERNAME: ${{ vars.GHCR_PULL_USERNAME }}
+      IMAGE_REF: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.event.release.tag_name }}
+    steps:
+      - name: Validate release deployment configuration
+        run: |
+          test -n "$AZURE_CLIENT_ID" || { echo "Missing repo variable AZURE_CLIENT_ID"; exit 1; }
+          test -n "$AZURE_TENANT_ID" || { echo "Missing repo variable AZURE_TENANT_ID"; exit 1; }
+          test -n "$AZURE_SUBSCRIPTION_ID" || { echo "Missing repo variable AZURE_SUBSCRIPTION_ID"; exit 1; }
+          test -n "$AZURE_RESOURCE_GROUP" || { echo "Missing repo variable AZURE_RESOURCE_GROUP"; exit 1; }
+          test -n "$AZURE_CONTAINER_APP_NAME" || { echo "Missing repo variable AZURE_CONTAINER_APP_NAME"; exit 1; }
+
+      - name: Log in to Azure with OIDC
+        uses: azure/login@v2
+        with:
+          client-id: ${{ env.AZURE_CLIENT_ID }}
+          tenant-id: ${{ env.AZURE_TENANT_ID }}
+          subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Configure GHCR auth for private packages
+        if: ${{ env.GHCR_PULL_TOKEN != '' && env.GHCR_PULL_USERNAME != '' }}
+        uses: azure/cli@v2
+        with:
+          inlineScript: |
+            az containerapp registry set \
+              --resource-group "$AZURE_RESOURCE_GROUP" \
+              --name "$AZURE_CONTAINER_APP_NAME" \
+              --server ghcr.io \
+              --username "$GHCR_PULL_USERNAME" \
+              --password "$GHCR_PULL_TOKEN"
+
+      - name: Deploy immutable release image
+        uses: azure/cli@v2
+        with:
+          inlineScript: |
+            az containerapp update \
+              --resource-group "$AZURE_RESOURCE_GROUP" \
+              --name "$AZURE_CONTAINER_APP_NAME" \
+              --image "$IMAGE_REF"
+
+      - name: Smoke test deployed release
+        uses: azure/cli@v2
+        with:
+          inlineScript: |
+            FQDN="$(az containerapp show \
+              --resource-group "$AZURE_RESOURCE_GROUP" \
+              --name "$AZURE_CONTAINER_APP_NAME" \
+              --query properties.configuration.ingress.fqdn \
+              -o tsv)"
+
+            curl --fail --silent --show-error --max-time 30 "https://${FQDN}/health"
