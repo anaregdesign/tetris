@@ -1,3 +1,4 @@
+import type { TetrisDashboardDto } from "~/lib/contracts/tetris-dashboard";
 import { BOARD_COLUMNS, BOARD_ROWS } from "~/lib/domain/entities/tetris-game";
 import {
   getDropIntervalMs,
@@ -32,6 +33,32 @@ export type TetrisControlHintViewModel = {
   keys: string;
 };
 
+export type TetrisRecentRunViewModel = {
+  id: string;
+  scoreLabel: string;
+  detailLabel: string;
+  recordedAtLabel: string;
+  durationLabel: string;
+};
+
+export type TetrisLeaderboardEntryViewModel = {
+  id: string;
+  rankLabel: string;
+  displayName: string;
+  handleLabel: string;
+  avatarUrl: string | null;
+  profileUrl: string | null;
+  scoreLabel: string;
+  detailLabel: string;
+  highlighted: boolean;
+};
+
+export type ScoreSaveFeedback = {
+  state: "guest" | "disabled" | "idle" | "saving" | "saved" | "error";
+  canRetry: boolean;
+  message?: string;
+};
+
 export type TetrisScreenViewModel = {
   phase: TetrisPhase;
   eyebrow: string;
@@ -54,6 +81,20 @@ export type TetrisScreenViewModel = {
   overlayCopy: string | null;
   statusAnnouncement: string;
   controlHints: TetrisControlHintViewModel[];
+  githubAuthConfigured: boolean;
+  viewer: TetrisDashboardDto["auth"]["viewer"];
+  signInHref: string;
+  logoutAction: string;
+  saveStatusLabel: string;
+  saveStatusCopy: string;
+  saveStatusTone: "neutral" | "progress" | "success" | "error";
+  canRetrySave: boolean;
+  recentRuns: TetrisRecentRunViewModel[];
+  recentRunsEmptyTitle: string;
+  recentRunsEmptyCopy: string;
+  leaderboard: TetrisLeaderboardEntryViewModel[];
+  leaderboardSummary: string;
+  viewerRankLabel: string | null;
 };
 
 const CONTROL_HINTS: TetrisControlHintViewModel[] = [
@@ -64,6 +105,13 @@ const CONTROL_HINTS: TetrisControlHintViewModel[] = [
   { label: "Pause", keys: "P / Esc" },
   { label: "Restart", keys: "R" },
 ];
+
+const dateFormatter = new Intl.DateTimeFormat("ja-JP", {
+  month: "short",
+  day: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
+});
 
 function getPhase(state: TetrisState): TetrisPhase {
   return state.snapshot.gameOver ? "gameOver" : state.status;
@@ -155,9 +203,84 @@ function projectBlocks(piece: NonNullable<TetrisState["snapshot"]["activePiece"]
     .filter((block) => block.row >= 0);
 }
 
-export function selectTetrisScreenViewModel(state: TetrisState): TetrisScreenViewModel {
+function formatDuration(durationMs: number): string {
+  const totalSeconds = Math.max(0, Math.round(durationMs / 1000));
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+
+  return `${minutes}:${seconds.toString().padStart(2, "0")}`;
+}
+
+function createSaveStatus(
+  saveFeedback: ScoreSaveFeedback,
+  dashboard: TetrisDashboardDto,
+): Pick<
+  TetrisScreenViewModel,
+  "saveStatusLabel" | "saveStatusCopy" | "saveStatusTone" | "canRetrySave"
+> {
+  switch (saveFeedback.state) {
+    case "disabled":
+      return {
+        saveStatusLabel: "Auth Unavailable",
+        saveStatusCopy:
+          "GitHub OAuth env が未設定です。`.env` に client id / secret を入れると social login が有効になります。",
+        saveStatusTone: "neutral",
+        canRetrySave: false,
+      };
+    case "guest":
+      return {
+        saveStatusLabel: "Guest Run",
+        saveStatusCopy:
+          "GitHub でログインすると run が SQLite に保存され、履歴と leaderboard に反映されます。",
+        saveStatusTone: "neutral",
+        canRetrySave: false,
+      };
+    case "saving":
+      return {
+        saveStatusLabel: "Saving Run",
+        saveStatusCopy: "最後の run を SQLite に保存して leaderboard を更新しています。",
+        saveStatusTone: "progress",
+        canRetrySave: false,
+      };
+    case "saved":
+      return {
+        saveStatusLabel: "Run Saved",
+        saveStatusCopy:
+          dashboard.auth.viewer === null
+            ? "Run が保存されました。"
+            : `${dashboard.auth.viewer.displayName} の履歴とランキングを更新しました。`,
+        saveStatusTone: "success",
+        canRetrySave: false,
+      };
+    case "error":
+      return {
+        saveStatusLabel: "Save Failed",
+        saveStatusCopy:
+          saveFeedback.message ??
+          "SQLite への保存に失敗しました。Retry で再送できます。",
+        saveStatusTone: "error",
+        canRetrySave: saveFeedback.canRetry,
+      };
+    default:
+      return {
+        saveStatusLabel: dashboard.auth.viewer ? "Signed In" : "Ready to Play",
+        saveStatusCopy: dashboard.auth.viewer
+          ? "Run 終了時に score が自動で保存されます。"
+          : "まずは guest で遊べます。保存と競争には GitHub login が必要です。",
+        saveStatusTone: "neutral",
+        canRetrySave: false,
+      };
+  }
+}
+
+export function selectTetrisScreenViewModel(
+  state: TetrisState,
+  dashboard: TetrisDashboardDto,
+  saveFeedback: ScoreSaveFeedback,
+): TetrisScreenViewModel {
   const phase = getPhase(state);
   const overlay = createOverlayCopy(phase);
+  const saveStatus = createSaveStatus(saveFeedback, dashboard);
 
   const heroContent: Record<
     TetrisPhase,
@@ -167,7 +290,7 @@ export function selectTetrisScreenViewModel(state: TetrisState): TetrisScreenVie
       eyebrow: "Arcade SPA",
       title: "Neon Stack Tetris",
       lead:
-        "A clean-architecture React Router SPA with a pure game engine, responsive controls, hold queue, ghost piece, and local best-score memory.",
+        "A clean-architecture React Router app with a pure game engine, GitHub social login, SQLite score history, and a live leaderboard.",
       statusLabel: "Standby",
       statusCopy: "The board is primed. Start the run, then rotate aggressively before the skyline gets tight.",
     },
@@ -175,7 +298,7 @@ export function selectTetrisScreenViewModel(state: TetrisState): TetrisScreenVie
       eyebrow: "Live Run",
       title: "Keep the skyline clean",
       lead:
-        "Line clears accelerate the drop clock. Use hold tactically and watch the ghost guide for efficient hard drops.",
+        "Line clears accelerate the drop clock. Finish the run cleanly and, if signed in, the result lands in your history and the global ranking.",
       statusLabel: "Flow State",
       statusCopy: "The interval tightens as your level climbs. Trust the queue, not panic inputs.",
     },
@@ -191,9 +314,9 @@ export function selectTetrisScreenViewModel(state: TetrisState): TetrisScreenVie
       eyebrow: "After Action",
       title: "Run it back cleaner",
       lead:
-        "Top-out ends the run, but the stack history still tells you where the board drifted. Restart, compress the gaps, and beat the high score.",
+        "Top-out ends the run, but the stack history still tells you where the board drifted. Restart, compress the gaps, and push a higher score into the ranking.",
       statusLabel: "Game Over",
-      statusCopy: "Best score is preserved locally. Use the rematch button or R to relaunch immediately.",
+      statusCopy: "If you are signed in, the finished run is recorded automatically. Use the rematch button or R to relaunch immediately.",
     },
   };
 
@@ -226,5 +349,43 @@ export function selectTetrisScreenViewModel(state: TetrisState): TetrisScreenVie
     overlayCopy: overlay.copy,
     statusAnnouncement: `${heroContent[phase].statusLabel}. Score ${state.snapshot.score}. Level ${state.snapshot.level}. Lines ${state.snapshot.lines}.`,
     controlHints: CONTROL_HINTS,
+    githubAuthConfigured: dashboard.auth.githubConfigured,
+    viewer: dashboard.auth.viewer,
+    signInHref: "/auth/github",
+    logoutAction: "/auth/logout",
+    saveStatusLabel: saveStatus.saveStatusLabel,
+    saveStatusCopy: saveStatus.saveStatusCopy,
+    saveStatusTone: saveStatus.saveStatusTone,
+    canRetrySave: saveStatus.canRetrySave,
+    recentRuns: dashboard.recentRuns.map((run) => ({
+      id: run.id,
+      scoreLabel: run.score.toLocaleString(),
+      detailLabel: `L${run.level} / ${run.lines.toLocaleString()} lines`,
+      recordedAtLabel: dateFormatter.format(new Date(run.recordedAt)),
+      durationLabel: formatDuration(run.durationMs),
+    })),
+    recentRunsEmptyTitle: dashboard.auth.viewer
+      ? "まだ保存された run がありません"
+      : "ログインすると履歴がここに出ます",
+    recentRunsEmptyCopy: dashboard.auth.viewer
+      ? "1 回でも game over まで遊べば、自動で score history が積み上がります。"
+      : "GitHub で sign in すると、SQLite に保存された自分の過去 run を時系列で見られます。",
+    leaderboard: dashboard.leaderboard.map((entry) => ({
+      id: `${entry.player.id}-${entry.rank}`,
+      rankLabel: `#${entry.rank}`,
+      displayName: entry.player.displayName,
+      handleLabel: `@${entry.player.handle}`,
+      avatarUrl: entry.player.avatarUrl,
+      profileUrl: entry.player.profileUrl,
+      scoreLabel: entry.score.toLocaleString(),
+      detailLabel: `L${entry.level} / ${entry.lines.toLocaleString()} lines`,
+      highlighted: entry.isViewer,
+    })),
+    leaderboardSummary:
+      dashboard.totalPlayers > 0
+        ? `${dashboard.totalPlayers.toLocaleString()} players have posted recorded runs.`
+        : "No recorded runs yet. The first signed-in run sets the opening benchmark.",
+    viewerRankLabel:
+      dashboard.viewerRank === null ? null : `Global rank #${dashboard.viewerRank}`,
   };
 }

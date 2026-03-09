@@ -1,3 +1,7 @@
+import { createServerDependencies } from "~/lib/server/infrastructure/dependencies.server";
+import { isGitHubAuthConfigured } from "~/lib/server/infrastructure/env.server";
+import { getSessionUserId } from "~/lib/server/infrastructure/session.server";
+import { getHomeSnapshot } from "~/lib/server/usecase/tetris/get-home-snapshot.server";
 import { TetrisView } from "~/components/tetris/TetrisView";
 import { useTetris } from "~/lib/client/usecase/tetris/use-tetris";
 
@@ -9,13 +13,25 @@ export function meta(_: Route.MetaArgs) {
     {
       name: "description",
       content:
-        "Responsive Tetris built as a React Router SPA with clean architecture, hold queue, ghost piece, and local high score storage.",
+        "Responsive Tetris with GitHub social login, SQLite score history, and a global leaderboard.",
     },
   ];
 }
 
-export default function IndexRoute() {
-  const tetris = useTetris();
+export async function loader({ request }: Route.LoaderArgs) {
+  const viewerId = await getSessionUserId(request);
+  const { playerRepository, scoreRunRepository } = createServerDependencies();
+
+  return getHomeSnapshot({
+    viewerId,
+    githubConfigured: isGitHubAuthConfigured(),
+    playerRepository,
+    scoreRunRepository,
+  });
+}
+
+export default function IndexRoute({ loaderData }: Route.ComponentProps) {
+  const tetris = useTetris(loaderData);
 
   return <TetrisView {...tetris} />;
 }

@@ -2,8 +2,16 @@ import {
   startTransition,
   useEffect,
   useEffectEvent,
+  useRef,
   useReducer,
 } from "react";
+import { useFetcher, useRevalidator } from "react-router";
+
+import type {
+  RecordScoreRunRequestDto,
+  RecordScoreRunResponseDto,
+  TetrisDashboardDto,
+} from "~/lib/contracts/tetris-dashboard";
 
 import {
   loadHighScore,
@@ -17,6 +25,7 @@ import {
 import { tetrisReducer } from "./reducer";
 import {
   selectTetrisScreenViewModel,
+  type ScoreSaveFeedback,
   type TetrisScreenViewModel,
 } from "./selectors";
 import { createInitialState } from "./state";
@@ -32,22 +41,79 @@ export type TetrisScreenHandlers = {
   handleSoftDrop(): void;
   handleHardDrop(): void;
   handleHoldPiece(): void;
+  handleRetryScoreSave(): void;
 };
 
 function createSeed(): number {
   return Date.now();
 }
 
-export function useTetris(): TetrisScreenViewModel & TetrisScreenHandlers {
+function createRunPayload(
+  score: number,
+  lines: number,
+  level: number,
+  durationMs: number,
+): RecordScoreRunRequestDto {
+  return {
+    score,
+    lines,
+    level,
+    durationMs,
+  };
+}
+
+export function useTetris(
+  dashboard: TetrisDashboardDto,
+): TetrisScreenViewModel & TetrisScreenHandlers {
+  const scoreRunFetcher = useFetcher<RecordScoreRunResponseDto>();
+  const revalidator = useRevalidator();
   const [state, dispatch] = useReducer(
     tetrisReducer,
     undefined,
-    () => createInitialState(createSeed()),
+    () => createInitialState(dashboard.gameSeed, dashboard.personalBest),
   );
+  const runStartedAtMsRef = useRef<number | null>(null);
+  const previousGameOverRef = useRef(false);
+  const lastFinishedRunRef = useRef<RecordScoreRunRequestDto | null>(null);
+  const lastSubmittedRunKeyRef = useRef<string | null>(null);
+  const lastRevalidatedRunIdRef = useRef<string | null>(null);
 
-  const viewModel = selectTetrisScreenViewModel(state);
+  const submitScoreRun = useEffectEvent((payload: RecordScoreRunRequestDto) => {
+    const formData = new FormData();
+    formData.set("score", String(payload.score));
+    formData.set("lines", String(payload.lines));
+    formData.set("level", String(payload.level));
+    formData.set("durationMs", String(payload.durationMs));
+    scoreRunFetcher.submit(formData, {
+      action: "/api/score-runs",
+      method: "post",
+    });
+  });
+
+  const saveFeedback: ScoreSaveFeedback = dashboard.auth.viewer
+    ? scoreRunFetcher.state !== "idle"
+      ? { state: "saving", canRetry: false }
+      : scoreRunFetcher.data?.ok
+        ? { state: "saved", canRetry: false }
+        : scoreRunFetcher.data && !scoreRunFetcher.data.ok
+          ? {
+              state: "error",
+              canRetry: lastFinishedRunRef.current !== null,
+              message: scoreRunFetcher.data.error,
+            }
+          : { state: "idle", canRetry: false }
+    : dashboard.auth.githubConfigured
+      ? { state: "guest", canRetry: false }
+      : { state: "disabled", canRetry: false };
+
+  const viewModel = selectTetrisScreenViewModel(state, dashboard, saveFeedback);
 
   const handleRestart = useEffectEvent(() => {
+    runStartedAtMsRef.current = Date.now();
+    previousGameOverRef.current = false;
+    lastFinishedRunRef.current = null;
+    lastSubmittedRunKeyRef.current = null;
+
     startTransition(() => {
       dispatch({ type: "restartRequested", seed: createSeed() });
     });
@@ -65,6 +131,10 @@ export function useTetris(): TetrisScreenViewModel & TetrisScreenHandlers {
     }
 
     if (state.status === "paused" || state.status === "ready") {
+      if (state.status === "ready") {
+        runStartedAtMsRef.current = Date.now();
+      }
+
       dispatch({ type: "startRequested" });
     }
   });
@@ -106,14 +176,18 @@ export function useTetris(): TetrisScreenViewModel & TetrisScreenHandlers {
   });
 
   useEffect(() => {
-    dispatch({ type: "highScoreHydrated", highScore: loadHighScore() });
-  }, []);
+    const nextHighScore = dashboard.auth.viewer
+      ? dashboard.personalBest
+      : loadHighScore();
+
+    dispatch({ type: "highScoreHydrated", highScore: nextHighScore });
+  }, [dashboard.auth.viewer, dashboard.personalBest]);
 
   useEffect(() => {
-    if (state.highScore > 0) {
+    if (!dashboard.auth.viewer && state.highScore > 0) {
       saveHighScore(state.highScore);
     }
-  }, [state.highScore]);
+  }, [dashboard.auth.viewer, state.highScore]);
 
   useEffect(() => {
     if (state.status !== "running" || state.snapshot.gameOver) {
@@ -128,6 +202,61 @@ export function useTetris(): TetrisScreenViewModel & TetrisScreenHandlers {
       window.clearInterval(timer);
     };
   }, [state.status, state.snapshot.gameOver, viewModel.tickIntervalMs, tick]);
+
+  useEffect(() => {
+    if (!dashboard.auth.viewer) {
+      previousGameOverRef.current = state.snapshot.gameOver;
+      return;
+    }
+
+    const justFinished = state.snapshot.gameOver && !previousGameOverRef.current;
+    previousGameOverRef.current = state.snapshot.gameOver;
+
+    if (!justFinished || state.snapshot.score <= 0) {
+      return;
+    }
+
+    const durationMs = Math.max(
+      0,
+      runStartedAtMsRef.current === null ? 0 : Date.now() - runStartedAtMsRef.current,
+    );
+    const payload = createRunPayload(
+      state.snapshot.score,
+      state.snapshot.lines,
+      state.snapshot.level,
+      durationMs,
+    );
+    const runKey = `${payload.score}:${payload.lines}:${payload.level}:${payload.durationMs}`;
+
+    lastFinishedRunRef.current = payload;
+
+    if (lastSubmittedRunKeyRef.current === runKey) {
+      return;
+    }
+
+    lastSubmittedRunKeyRef.current = runKey;
+    submitScoreRun(payload);
+  }, [
+    dashboard.auth.viewer,
+    state.snapshot.gameOver,
+    state.snapshot.level,
+    state.snapshot.lines,
+    state.snapshot.score,
+    submitScoreRun,
+  ]);
+
+  useEffect(() => {
+    if (scoreRunFetcher.state !== "idle" || !scoreRunFetcher.data?.ok) {
+      return;
+    }
+
+    if (lastRevalidatedRunIdRef.current === scoreRunFetcher.data.run.id) {
+      return;
+    }
+
+    lastRevalidatedRunIdRef.current = scoreRunFetcher.data.run.id;
+    revalidator.revalidate();
+  }, [revalidator, scoreRunFetcher.data, scoreRunFetcher.state]);
 
   const handleKeyboard = useEffectEvent((event: KeyboardEvent) => {
     if (shouldIgnoreKeyboardTarget(event.target)) {
@@ -190,6 +319,14 @@ export function useTetris(): TetrisScreenViewModel & TetrisScreenHandlers {
     };
   }, [handleKeyboard]);
 
+  const handleRetryScoreSave = useEffectEvent(() => {
+    if (lastFinishedRunRef.current === null) {
+      return;
+    }
+
+    submitScoreRun(lastFinishedRunRef.current);
+  });
+
   return {
     ...viewModel,
     handlePrimaryAction,
@@ -202,5 +339,6 @@ export function useTetris(): TetrisScreenViewModel & TetrisScreenHandlers {
     handleSoftDrop,
     handleHardDrop,
     handleHoldPiece,
+    handleRetryScoreSave,
   };
 }

@@ -25,6 +25,20 @@ export function TetrisView({
   overlayCopy,
   statusAnnouncement,
   controlHints,
+  githubAuthConfigured,
+  viewer,
+  signInHref,
+  logoutAction,
+  saveStatusLabel,
+  saveStatusCopy,
+  saveStatusTone,
+  canRetrySave,
+  recentRuns,
+  recentRunsEmptyTitle,
+  recentRunsEmptyCopy,
+  leaderboard,
+  leaderboardSummary,
+  viewerRankLabel,
   handlePrimaryAction,
   handleRestart,
   handlePauseToggle,
@@ -35,6 +49,7 @@ export function TetrisView({
   handleSoftDrop,
   handleHardDrop,
   handleHoldPiece,
+  handleRetryScoreSave,
 }: TetrisViewProps) {
   return (
     <main className="page-shell">
@@ -189,6 +204,157 @@ export function TetrisView({
               </div>
             </div>
           </aside>
+        </section>
+
+        <section className="social-grid">
+          <aside className="info-panel social-panel">
+            <div className="panel-header">
+              <p className="panel-title">Pilot</p>
+              <p className="assist-copy">
+                Social login は GitHub OAuth 前提です。signed-in player は run が SQLite に保存され、履歴と leaderboard が更新されます。
+              </p>
+            </div>
+
+            {viewer ? (
+              <div className="profile-card">
+                <div className="profile-row">
+                  <div className="profile-avatar" aria-hidden="true">
+                    {viewer.avatarUrl ? (
+                      <img src={viewer.avatarUrl} alt="" className="profile-avatar-image" />
+                    ) : (
+                      <span>{viewer.displayName.slice(0, 1)}</span>
+                    )}
+                  </div>
+
+                  <div className="profile-copy">
+                    <strong>{viewer.displayName}</strong>
+                    <span className="control-hint-keys">@{viewer.handle}</span>
+                    {viewerRankLabel ? (
+                      <span className="profile-rank">{viewerRankLabel}</span>
+                    ) : null}
+                  </div>
+                </div>
+
+                <div className="action-row">
+                  {viewer.profileUrl ? (
+                    <a
+                      href={viewer.profileUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="action-button action-button-secondary"
+                    >
+                      GitHub Profile
+                    </a>
+                  ) : null}
+
+                  <form method="post" action={logoutAction}>
+                    <button
+                      type="submit"
+                      className="action-button action-button-secondary"
+                    >
+                      Log Out
+                    </button>
+                  </form>
+                </div>
+              </div>
+            ) : (
+              <div className="preview-card">
+                <span className="preview-card-label">GitHub Login</span>
+                <p className="assist-copy">
+                  {githubAuthConfigured
+                    ? "サインインすると score history と global leaderboard が有効になります。"
+                    : "OAuth env が未設定なので、今は guest play のみです。"}
+                </p>
+                {githubAuthConfigured ? (
+                  <a href={signInHref} className="action-button action-button-primary auth-link">
+                    Sign In with GitHub
+                  </a>
+                ) : null}
+              </div>
+            )}
+
+            <div className={`save-status-card save-status-${saveStatusTone}`}>
+              <div className="panel-header">
+                <p className="panel-title">{saveStatusLabel}</p>
+              </div>
+              <p className="assist-copy">{saveStatusCopy}</p>
+              {canRetrySave ? (
+                <button
+                  type="button"
+                  className="action-button action-button-secondary"
+                  onClick={handleRetryScoreSave}
+                >
+                  Retry Save
+                </button>
+              ) : null}
+            </div>
+          </aside>
+
+          <section className="info-panel social-panel">
+            <div className="panel-header">
+              <p className="panel-title">Run History</p>
+              <p className="assist-copy">
+                保存された自分の run を新しい順に表示します。score だけでなく level と line clear も追えます。
+              </p>
+            </div>
+
+            {recentRuns.length > 0 ? (
+              <div className="social-list">
+                {recentRuns.map((run) => (
+                  <div key={run.id} className="social-row">
+                    <div className="social-row-main">
+                      <strong>{run.scoreLabel}</strong>
+                      <span>{run.detailLabel}</span>
+                    </div>
+                    <div className="social-row-meta">
+                      <span>{run.recordedAtLabel}</span>
+                      <span>{run.durationLabel}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="empty-state">
+                <strong>{recentRunsEmptyTitle}</strong>
+                <p>{recentRunsEmptyCopy}</p>
+              </div>
+            )}
+          </section>
+
+          <section className="info-panel social-panel">
+            <div className="panel-header">
+              <p className="panel-title">Leaderboard</p>
+              <p className="assist-copy">{leaderboardSummary}</p>
+            </div>
+
+            {leaderboard.length > 0 ? (
+              <div className="social-list">
+                {leaderboard.map((entry) => (
+                  <div
+                    key={entry.id}
+                    className={`social-row${entry.highlighted ? " social-row-highlighted" : ""}`}
+                  >
+                    <div className="social-rank">{entry.rankLabel}</div>
+
+                    <div className="social-row-main">
+                      <strong>{entry.displayName}</strong>
+                      <span>{entry.handleLabel}</span>
+                    </div>
+
+                    <div className="social-row-meta social-row-score">
+                      <strong>{entry.scoreLabel}</strong>
+                      <span>{entry.detailLabel}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="empty-state">
+                <strong>No leaderboard entries yet</strong>
+                <p>The first signed-in run will establish the initial benchmark.</p>
+              </div>
+            )}
+          </section>
         </section>
 
         <section className="control-panel">

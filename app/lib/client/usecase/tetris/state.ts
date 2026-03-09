@@ -9,10 +9,10 @@ export type TetrisState = {
   highScore: number;
 };
 
-export function createInitialState(seed: number): TetrisState {
+export function createInitialState(seed: number, initialHighScore: number): TetrisState {
   return {
     snapshot: createInitialSnapshot(seed),
     status: "ready",
-    highScore: 0,
+    highScore: initialHighScore,
   };
 }

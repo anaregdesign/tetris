@@ -1,0 +1,35 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../app/lib/server/infrastructure/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model User {
+  id          String     @id @default(cuid())
+  githubId    String     @unique
+  handle      String
+  displayName String
+  avatarUrl   String?
+  profileUrl  String?
+  email       String?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  scoreRuns   ScoreRun[]
+}
+
+model ScoreRun {
+  id         String   @id @default(cuid())
+  userId     String
+  score      Int
+  lines      Int
+  level      Int
+  durationMs Int
+  recordedAt DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, recordedAt])
+  @@index([score, recordedAt])
+}
