@@ -118,3 +118,10 @@ The domain engine lives in [app/lib/domain/services/tetris-engine.ts](./app/lib/
 - Runtime authentication is designed for `DefaultAzureCredential`, which means Managed Identity on Azure is the recommended production path.
 - Prisma migrations should run with a separate deployment credential through `PRISMA_DATABASE_URL`; do not grant schema-change privileges to the runtime identity.
 - The runtime identity only needs data access on the target tables after migrations have finished.
+
+## Container Release
+
+- Publishing a GitHub release triggers [release-container-image.yml](./.github/workflows/release-container-image.yml).
+- The workflow builds `Dockerfile` and pushes the image to `ghcr.io/anaregdesign/tetris`.
+- Every published release gets a tag matching the GitHub release tag and a short `sha-*` tag.
+- Non-prerelease releases also refresh the `latest` tag.

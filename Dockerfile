@@ -9,6 +9,8 @@ WORKDIR /app
 RUN npm ci --omit=dev
 
 FROM node:20-alpine AS build-env
+ARG PRISMA_DATABASE_URL="sqlserver://localhost:1433;database=tetris;user=sa;password=placeholder;encrypt=true;trustServerCertificate=true"
+ENV PRISMA_DATABASE_URL=$PRISMA_DATABASE_URL
 COPY . /app/
 COPY --from=development-dependencies-env /app/node_modules /app/node_modules
 WORKDIR /app
