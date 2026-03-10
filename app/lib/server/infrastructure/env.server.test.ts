@@ -55,6 +55,7 @@ describe("getSqlServerRuntimeConfig", () => {
       database: "tetris",
       authentication: {
         type: "azure-active-directory-default",
+        options: {},
       },
       options: {
         encrypt: true,

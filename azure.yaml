@@ -1,0 +1,17 @@
+name: tetris
+metadata:
+  template: tetris
+
+services:
+  web:
+    project: .
+    language: docker
+    host: containerapp
+    docker:
+      path: ./Dockerfile
+      remoteBuild: true
+
+hooks:
+  postprovision:
+    shell: sh
+    run: ./scripts/azure/postprovision.sh

@@ -9,6 +9,7 @@ type SqlServerRuntimeConfig =
       database: string;
       authentication: {
         type: "azure-active-directory-default";
+        options: {};
       };
       options: {
         encrypt: boolean;
@@ -109,6 +110,7 @@ export function getSqlServerRuntimeConfig(): SqlServerRuntimeConfig {
       ...baseConfig,
       authentication: {
         type: "azure-active-directory-default",
+        options: {},
       },
     };
   }

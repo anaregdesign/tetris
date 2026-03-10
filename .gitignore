@@ -9,3 +9,5 @@
 /app/lib/server/infrastructure/generated/prisma
 /prisma/*.db
 /prisma/*.db-journal
+/.azure/*
+!/.azure/plan.md
