@@ -83,7 +83,7 @@ jobs:
       AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
       GHCR_PULL_TOKEN: ${{ secrets.GHCR_PULL_TOKEN }}
       GHCR_PULL_USERNAME: ${{ vars.GHCR_PULL_USERNAME }}
-      IMAGE_REF: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.event.release.tag_name }}
+      IMAGE_REF: ghcr.io/${{ github.repository }}:${{ github.event.release.tag_name }}
     steps:
       - name: Validate release deployment configuration
         run: |
